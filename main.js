@@ -8,7 +8,7 @@ const tg_filename = './tguilds.json';
 
 if(existsSync(tg_filename)) {
   for(const o of require(tg_filename)) {
-    tguilds.set(o.guild, o);
+    tguilds.set(o.guild, new TGuild(o));
   }
 }
 
@@ -20,10 +20,10 @@ const client = new Discord.Client({
 });
 
 client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag}!`);
   //setCommands();
   updateAllStatChannels();
   setInterval(updateAllStatChannels, 60_000);
-  console.log(`Logged in as ${client.user.tag}!`);
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -71,12 +71,21 @@ client.on('interactionCreate', async (interaction) => {
         // capitalize the stat type for use with the default channel name
         const stat_type_capitalized = stat_type.replace(stat_type[0], stat_type[0].toUpperCase());
 
-        // insert the statistic's value into the channel name
-        const name = (options.getString('channel_name') ?? `${stat_type_capitalized} Count: {stat}`).replace('{stat}', stat_value.toString());
+        const channel_name = options.getString('channel_name');
+        const default_name = `${stat_type_capitalized} Count: {stat}`;
 
-        // grab and save id of the new channel
-        const { id } = await guild.channels.create({ type, name });
-        tguilds.get(guildId)[stat_type] = { channel: id, name };
+        // insert the statistic's value into the channel name
+        const name = (channel_name ?? default_name).replace('{stat}', stat_value.toString());
+
+        // prevent members from joining and allow myself to edit the channel
+        const permissionOverwrites = [
+          { id: guild.roles.everyone, deny: 'Connect' },
+          { id: guild.roles.botRoleFor(client.user), allow: 'ViewChannel' }
+        ];
+
+        // save id of the new channel
+        const { id } = await guild.channels.create({ type, name, permissionOverwrites });
+        tguilds.get(guildId)[stat_type] = { channel: id, name: channel_name ?? default_name };
         
         await interaction.reply('successfully created!');
       }
@@ -116,15 +125,19 @@ function get_stat_value(guild, stat_type) {
 }
 
 // updates all stat channels in all servers
-function updateAllStatChannels() {
+async function updateAllStatChannels() {
   for(const tg of tguilds.values()) {
     if(!(tg instanceof TGuild)) continue;
-    const guild = client.guilds.resolve(tg.guild);
-    if(!guild) { tguilds.delete(tg.guild); continue; }
+    let guild;
+    try { guild = await client.guilds.fetch(tg.guild); }
+    catch(err) { tguilds.delete(tg.guild); continue; }
     for(const k in tg) {
-      if(!tg[k] || k === 'guild') continue;
+      if(!tg[k].channel || k === 'guild') continue;
       const name = tg[k].name.replace('{stat}', get_stat_value(guild, k));
-      guild.channels.resolve(tg[k].channel).edit({ name });
+      let channel;
+      try { channel = await guild.channels.fetch(tg[k].channel); }
+      catch(err) { tg[k].channel = null; continue; }
+      channel.edit({ name }).catch(console.error);
     }
   }
 }

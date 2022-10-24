@@ -1,6 +1,7 @@
 const tguild_keys = ['member', 'human', 'bot', 'channel', 'role', 'emoji', 'invite', 'ban'];
 
 function TGuild(o) {
+  console.log(o);
   this.guild = o.guild;
   if(typeof this.guild !== 'string') return;
   for(const k of tguild_keys) {
