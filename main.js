@@ -12,7 +12,6 @@ if(existsSync(tg_filename)) {
   }
 }
 
-
 const client = new Discord.Client({
   intents: [
     'Guilds',
@@ -44,7 +43,7 @@ client.on('interactionCreate', async (interaction) => {
     switch(commandName) {
       case 'ping': await interaction.reply(`\`${client.ws.ping}ms\``); break;
       case 'create_stat_channel': {
-        // we want the full GuildMember object to check permissions
+        // we want a GuildMember object to check permissions
         if(!(member instanceof Discord.GuildMember)) { somethingWentWrong(); break; }
 
         // check permissions
@@ -53,7 +52,7 @@ client.on('interactionCreate', async (interaction) => {
           break;
         }
         if(!member.permissions.has('ManageChannels')) {
-          await interaction.replyEphemeral('i need `Manage Channels` perms to create server stat channels');
+          await interaction.replyEphemeral('you need `Manage Channels` perms to create server stat channels');
           break;
         }
 
@@ -71,13 +70,14 @@ client.on('interactionCreate', async (interaction) => {
 
         // capitalize the stat type for use with the default channel name
         const stat_type_capitalized = stat_type.replace(stat_type[0], stat_type[0].toUpperCase());
+
+        // insert the statistic's value into the channel name
         const name = (options.getString('channel_name') ?? `${stat_type_capitalized} Count: {stat}`).replace('{stat}', stat_value.toString());
 
-        // grab and said id of the new channel
+        // grab and save id of the new channel
         const { id } = await guild.channels.create({ type, name });
         tguilds.get(guildId)[stat_type] = { channel: id, name };
         
-        // reply on completion
         await interaction.reply('successfully created!');
       }
     }
